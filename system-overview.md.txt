@@ -1,0 +1,12 @@
+# System Overview
+
+The Dual-Powered IoT Greenhouse is designed to operate reliably in areas with unstable electricity supply.
+
+## Objectives
+- Ensure uninterrupted greenhouse operation
+- Optimize energy usage
+- Enable remote monitoring
+
+## Operating Modes
+- Automatic mode
+- Manual override mode

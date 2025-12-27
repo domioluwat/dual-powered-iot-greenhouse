@@ -1,0 +1,11 @@
+# Power Architecture
+
+## Power Sources
+- Solar panel 
+- Battery storage
+- Grid power 
+
+## Operation Logic
+1. Solar powers system during daylight
+2. Battery stores excess energy
+3. Grid supplies power when battery voltage is low

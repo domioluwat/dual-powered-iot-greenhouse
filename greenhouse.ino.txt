@@ -1,0 +1,370 @@
+/* blynk configurations*/
+#define BLYNK_TEMPLATE_ID "TMPxxxxxxxxJ"
+#define BLYNK_TEMPLATE_NAME "Dominions IoT Greenhouse"
+#define BLYNK_AUTH_TOKEN "xxxxxxxxxxxxxxxxxxxxxxxx"
+#define BLYNK_PRINT Serial //enables blynk debug prints on the serial monitor
+/*libraries used*/
+#include <WiFi.h>  // 
+#include "DHT.h"  // 
+#include <Wire.h>  // 
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <LiquidCrystal_I2C.h>
+#include <dummy.h>
+/* pin configurations*/
+#define LED 2
+#define temperature_sensor 4
+#define light_sensor 5
+#define soil_moisture_sensor 12
+#define dc_fan 16
+#define water_pump 18
+#define btn_loads 19
+#define btn_status 23
+#define debug false 
+#define DHTPIN 21
+#define DHTTYPE 22
+
+
+/*network cnfigurations*/
+char ssid[] = "YourWiFiSSID";
+char pass[] = "YourWiFiPassword";
+void setup()
+{
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+}
+
+void loop()
+{
+  Blynk.run();
+}
+/*object definitions*/
+blynktimer timer;
+DHT_Unified dht(DHTPIN,DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+/*variables used */
+byte cont= 0;
+char projectmode= 'A' // This intializes the project mode to A
+unsigned long int timedelay=0;
+bool buzzerpreviewstatus=false;
+float temperature=0, humidity=0;
+bool flagsoil=false, flagalarm= false;
+int lights=o, soilmeasure=0;
+/* status conditions */
+String statusalarm= "";
+String statusfan="", statuspumps="";
+String statuslights="", statustemperature='';
+String statushumidity="", statussoilmeasure="";
+
+
+blynk_write(v16)
+{
+  int value= param.asint();
+  projectmode = (value==0)?'A':'M';
+  serial.println("change of state:"+string(value)+" for:"+string(projectmode));
+}
+blynk_write(v17)
+{
+  /* pump activation*/
+  int value = param.asint();
+  if(projectmode=='M'&& value==1)
+  turnonpump();
+  else
+  turnoffpump();
+  serial.println("change of pump:" +string(value)+", for:"+ispumpon());
+}
+blynk_write(v18)
+{
+  /* fan activation */
+  int value = param.asint();
+  if (projectmode=='M' && value==1)
+  turnonfan() 
+  else
+  turnofffan()
+  serial.println("change of fan:" +string(value)+", for:" +isfanon());
+}
+void senddatatoblynk()
+{
+  blynk.virtualwrite(v0, lights);
+  blynk.virtualwrite(v1, statuslights);
+
+  blynk.virtualwrite(v2, temperature);
+  blynk.virtualwrite(v3, statustemperature);
+
+  blynk.virtualwrite(v4, humidity);
+  blynk.virtualwrite(v5, statushumidity);
+
+  blynk.virtualwrite(v6, statusfan);
+  blynk.virtualwrite(v7, statuspump);
+}
+void setup()
+{
+  initsetup();
+  serial.begin(115200);
+  dht.begin();
+  blynk.begin(blynk_auth_token,ssid,pass);
+  timer.setinterval(2000L, senddatatoblynk);
+}
+void loop() 
+{
+  if (millis()-timedelay>1500)
+  {
+    timedelay= millis();
+    readsensors();
+    analyzedata();
+    printdataLCD();
+    digitalwrite(LED, !digitalread(LED));
+  }
+    buttonshandler();
+    blynk.run();
+    timer.run();
+}
+void initsetup()
+{
+  pinmode (LED,output);
+  digitalwrite(LED, LOW);
+
+  pinmode (fan, output);
+  turnofffan();
+
+  pinmode (pump, output);
+  turnoffpump();
+
+  pinmode (lights, output);
+  turnofflights();
+
+  pinmode(btn_status, input_pullup);
+  pinmode(bbtn_load, input_pullup);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setcursor(0,0);
+  lcd.print("Final year project");
+  lcd.setcursor(0,1);
+  lcd.print ("IOT Greenhouse");
+  lcd.setcursor(-4,2);
+  lcd.print("Dominion Oluwatayo");
+
+  delay(2000); 
+}
+bool islighton(){
+  return(digitalread(lights))
+}
+void turnonlights(){
+  digitalwrite(lights,high);
+}
+void turnofflights(){
+  digitalwrite(lights, low);
+}
+bool isfanon(){
+  return(digitalread(fan));
+}
+void turnonfan(){
+  digitalwrite(fan,high);
+}
+void turnofffan(){
+  digitalwrite(fan,low)
+}
+bool ispumpon(){
+  return(digitalread(pump));
+}
+void turnonpunp(){
+  digitalwrite(pump,high);
+}
+void turnoffpump(){
+  digitalwrite(pump,low);
+}
+
+/* sensor data */
+void readsensors()
+{
+  humidity=dht.readhumidity();
+  temperature=dht.readtemperature();
+  lights = 100 - map(analogread(LDR_sensor), 0, 1023, 0, 100);
+  soilmeasure = 100 - map(analogread(soilmeasure_sensor), 0, 1023, 0, 100);
+  if (isnan(humidity) || isnan(temperature));
+  serial.println(F("failed to read sensor!"));
+  temperature = humidity =0;
+}
+void analysedata()
+{
+  if (projectmode == 'A')
+  if (soilmeasure < 40 && !flagsoil)
+  {
+    flagsoil = true;
+    turnonpump();
+  }
+  else if (soilmeasure >= 70 && flagsoil){
+    flagsoil = false;
+    turnoffpump();
+   }
+   if (lights < 50)
+   turnonlights();
+   else
+   turnofflights(); 
+}
+statuslights = islighton() ? "lights on" : "ights off";
+statuspump = ispumpon() ? "pump on" : "pump off";
+statusfan = isfanon() ? "fan on" : "fan off";
+
+if (temperature > 27){
+  statustemperature = "High"
+  if (projectmode == 'A')
+  {
+    turnonfan();
+  }
+}
+else if (temperature >= 20)
+{
+  statustemperature = "Normal"
+  if (projectmode == 'A')
+  {
+    turnofffan();
+  }
+}
+else{
+  statustemperature = "Low"
+  if (projectmode == 'A')
+  {
+    turnofffan();
+  }
+}
+
+if (humidity >= 85)
+statushumidity = "High"
+else if (humidity >= 45)
+statushumidity = "Normal"
+else
+statushumidity = "Low"
+
+if (soilmeasure >= 85)
+statussoimeasure = "Humid"
+else if (soilmeasure > 40)
+statussoilmeasure = "Normal"
+else
+statussoilmeasure = "dry"
+
+if debug {
+  serial.println("TEMPER...:" +string(temperature) +"%");
+  serial.println("HUMI..:" +string(humidity) +"%");
+  serial.println("SOIL.MOIST:" +string(soilmoisture) +"%");
+  serial.println("BRIGHTNESS:" +string(light) +"%");
+  serial.println(statuslights);
+  serial.println(statuspump);
+  serial.println("projectstatus....:" +string(projectmode)); 
+}
+
+void printdataLCD()
+{
+  static byte counter= 0;
+  static bool flagS = false;
+  lcd.init();
+  lcd.clear();
+  lcd.setcursor(0, 0);
+
+switch(counter)
+{
+  case 0:
+  lcd.print("temperature:");
+  lcd.print(temperature);
+  lcd.print("*c");
+
+  lcd.setcursor(0, 1);
+  lcd.print("HUMI...:");
+  lcd.print(humidity);
+  lcd.print("%");
+ break;
+
+ case 1:
+  lcd.print("soilmoisture:");
+  lcd.print(soilmoisture);
+  lcd.print("%");
+
+  lcd.setcursor(0, 1);
+  lcd.print("brightness...:");
+  lcd.print(lights);
+  lcd.print("%");
+
+  lcd.setcursor(-4, 2);
+  lcd.print("lights...");
+  lcd.print((islighton())? "ON"m: "OFF");
+
+  lcd.setcursor(-4, 3);
+  lcd.print("status:");
+  lcd.print((projectmode=='A')? "AUTOMATIC" : "MANUAL");
+ break;
+
+ case 2:
+  lcd.print("PUMP....:");
+  lcd.print(ispumpon()? "ON":"OFF");
+  lcd.setcursor(0,  1);
+  lcd.print(isfanon()? "ON":"OFF");
+ break;
+ }
+ if (++counter >= 3) counter = 0;
+}
+
+void buttonshandler()
+{
+  if (!digitalread(BTN_STATUS))
+ {
+  projectmode = (projectmode == 'A')? 'M' : 'A';
+  flagSoil = false;
+  lcd.clear();
+  lcd.setcursor(0, 0);
+  lcd.print("################");
+  lcd.setcursor(0, 1);
+  lcd.print("SWITCH ACTIVATED");
+  lcd.setcursor(-4, 2);
+  lcd.print("TEMPERATURE:" +string(time) +"s");
+  lcd.setcursor(-4, 3);
+  lcd.print("LOAD:" +selectloadtext(time));
+  delay(500);
+ }
+
+ lcd.clear();
+ lcd.setcursor(0, 0);
+ lcd.print("#############");
+ lcd.setcursor(0, 1);
+
+ if (time>6) {
+  if (isfanon())
+  turnofffan();
+ else
+  turnonfan();
+  lcd.print("FAN:");
+  lcd.setcursor(5, 2);
+  lcd.print(statusfan);
+ }
+
+ else if (time>3){
+  if (ispumpon())
+   turnoffpump();
+  else
+   turnonpump();
+
+  lcd.print ("status of the pump");
+  lcd.setcursor(5, 2);
+  lcd.print(statuspump)
+ } 
+  else {
+    if (islighton())
+     turnofflights();
+    else
+     tunonlights();
+
+    lcd.print ("status of the lights");
+    lcd.setcursor(5, 2);
+    lcd.print(statuslights);
+ }
+    lcd.setcursor(-4, 3);
+    lcd.print("##############");    
+}
+
+string selectloadtext(int time)
+{
+  if (time >= 6)
+   return "fan"
+  else if (time >= 3)
+   return "pump"
+  return "lights"
+}
